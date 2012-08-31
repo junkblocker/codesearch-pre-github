@@ -58,6 +58,18 @@ var (
 	resetFlag   = flag.Bool("reset", false, "discard existing index")
 	verboseFlag = flag.Bool("verbose", false, "print extra information")
 	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
+	logSkipFlag = flag.Bool("logskip", false, "print why a file was skipped from indexing")
+	// Tuning variables for detecting text files.
+	// A file is assumed not to be text files (and thus not indexed) if
+	// 1) if it contains an invalid UTF-8 sequences
+	// 2) if it is longer than maxFileLength bytes
+	// 3) if it contains a line longer than maxLineLen bytes,
+	// or
+	// 4) if it contains more than maxTextTrigrams distinct trigrams.
+	maxFileLen         = flag.Int64("maxfilelen", 1<<30, "skip indexing a file if longer than this size in bytes")
+	maxLineLen         = flag.Int("maxlinelen", 2000, "skip indexing a file if it has a line longer than this size in bytes")
+	maxTextTrigrams    = flag.Int("maxtrigrams", 20000, "skip indexing a file if it has more than this number of trigrams")
+	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", 0, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 )
 
 func main() {
@@ -123,15 +135,27 @@ func main() {
 
 	ix := index.Create(file)
 	ix.Verbose = *verboseFlag
+	ix.LogSkip = *logSkipFlag
+	ix.MaxFileLen = *maxFileLen
+	ix.MaxLineLen = *maxLineLen
+	ix.MaxTextTrigrams = *maxTextTrigrams
+	ix.MaxInvalidUTF8Ratio = *maxInvalidUTF8Ratio
 	ix.AddPaths(args)
 	for _, arg := range args {
 		log.Printf("index %s", arg)
 		filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 			if _, elem := filepath.Split(path); elem != "" {
 				// Skip various temporary or "hidden" files or directories.
-				if elem[0] == '.' || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
-					if info.IsDir() {
+				if info.IsDir() {
+					if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
+						if ix.LogSkip {
+							log.Printf("%s: skipped. VCS or backup directory", path)
+						}
 						return filepath.SkipDir
+					}
+				} else if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" {
+					if ix.LogSkip {
+						log.Printf("%s: skipped. Backup or undesirable file", path)
 					}
 					return nil
 				}

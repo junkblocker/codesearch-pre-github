@@ -53,6 +53,12 @@ type IndexWriter struct {
 
 	inbuf []byte     // input buffer
 	main  *bufWriter // main index file
+
+	MaxFileLen      int64
+	MaxLineLen      int
+	MaxTextTrigrams int
+
+	MaxInvalidUTF8Ratio float64
 }
 
 const npost = 64 << 20 / 8 // 64 MB worth of post entries
@@ -67,6 +73,10 @@ func Create(file string) *IndexWriter {
 		main:      bufCreate(file),
 		post:      make([]postEntry, 0, npost),
 		inbuf:     make([]byte, 16384),
+		MaxFileLen: 1<<30,
+		MaxLineLen: 2000,
+		MaxTextTrigrams: 20000,
+		MaxInvalidUTF8Ratio: 0.0,
 	}
 }
 
@@ -84,17 +94,6 @@ func (p postEntry) fileid() uint32 {
 func makePostEntry(trigram, fileid uint32) postEntry {
 	return postEntry(trigram)<<32 | postEntry(fileid)
 }
-
-// Tuning constants for detecting text files.
-// A file is assumed not to be text files (and thus not indexed)
-// if it contains an invalid UTF-8 sequences, if it is longer than maxFileLength
-// bytes, if it contains a line longer than maxLineLen bytes,
-// or if it contains more than maxTextTrigrams distinct trigrams.
-const (
-	maxFileLen      = 1 << 30
-	maxLineLen      = 2000
-	maxTextTrigrams = 20000
-)
 
 // AddPaths adds the given paths to the index's list of paths.
 func (ix *IndexWriter) AddPaths(paths []string) {
@@ -124,6 +123,7 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 		tv      = uint32(0)
 		n       = int64(0)
 		linelen = 0
+		inv_cnt = int64(0)
 	)
 	for {
 		tv = (tv << 8) & (1<<24 - 1)
@@ -150,20 +150,29 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 			ix.trigram.Add(tv)
 		}
 		if !validUTF8((tv>>8)&0xFF, tv&0xFF) {
+			inv_cnt++
+			if (float64(inv_cnt) / float64(n)) > ix.MaxInvalidUTF8Ratio {
+				if ix.LogSkip {
+					log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, n, inv_cnt, float64(inv_cnt)/float64(n))
+				}
+				return
+			}
+		}
+		if (((tv>>8)&0xFF) == 0x00 || (tv&0xFF) == 0x00) && n >= 3 {
 			if ix.LogSkip {
-				log.Printf("%s: invalid UTF-8, ignoring\n", name)
+				log.Printf("%s: skipped. Binary file. Bytes %02X%02X at offset %d\n", name, (tv>>8)&0xFF, tv&0xFF, n)
 			}
 			return
 		}
-		if n > maxFileLen {
+		if n > ix.MaxFileLen {
 			if ix.LogSkip {
 				log.Printf("%s: too long, ignoring\n", name)
 			}
 			return
 		}
-		if linelen++; linelen > maxLineLen {
+		if linelen++; linelen > ix.MaxLineLen && (float64(inv_cnt)/float64(n)) > ix.MaxInvalidUTF8Ratio {
 			if ix.LogSkip {
-				log.Printf("%s: very long lines, ignoring\n", name)
+				log.Printf("%s: skipped. Very long lines (%d) with high invalid UTF-8 ratio total: %d invalid: %d ratio: %f\n", name, linelen, n, inv_cnt, float64(inv_cnt)/float64(n))
 			}
 			return
 		}
@@ -171,9 +180,17 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 			linelen = 0
 		}
 	}
-	if ix.trigram.Len() > maxTextTrigrams {
+	if inv_cnt > 0 {
+		if (float64(inv_cnt) / float64(n)) > ix.MaxInvalidUTF8Ratio {
+			if ix.LogSkip {
+				log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, n, inv_cnt, float64(inv_cnt)/float64(n))
+			}
+			return
+		}
+	}
+	if ix.trigram.Len() > ix.MaxTextTrigrams {
 		if ix.LogSkip {
-			log.Printf("%s: too many trigrams, probably not text, ignoring\n", name)
+			log.Printf("%s: skipped. Too many trigrams (%d > %d)\n", name, ix.trigram.Len(), ix.MaxTextTrigrams)
 		}
 		return
 	}
