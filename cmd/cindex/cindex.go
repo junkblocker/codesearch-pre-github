@@ -66,9 +66,9 @@ var (
 	// 3) if it contains a line longer than maxLineLen bytes,
 	// or
 	// 4) if it contains more than maxTextTrigrams distinct trigrams.
-	maxFileLen         = flag.Int64("maxfilelen", 1<<30, "skip indexing a file if longer than this size in bytes")
-	maxLineLen         = flag.Int("maxlinelen", 2000, "skip indexing a file if it has a line longer than this size in bytes")
-	maxTextTrigrams    = flag.Int("maxtrigrams", 20000, "skip indexing a file if it has more than this number of trigrams")
+	maxFileLen          = flag.Int64("maxfilelen", 1<<30, "skip indexing a file if longer than this size in bytes")
+	maxLineLen          = flag.Int("maxlinelen", 2000, "skip indexing a file if it has a line longer than this size in bytes")
+	maxTextTrigrams     = flag.Int("maxtrigrams", 30000, "skip indexing a file if it has more than this number of trigrams")
 	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", 0, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 )
 
@@ -153,11 +153,22 @@ func main() {
 						}
 						return filepath.SkipDir
 					}
-				} else if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" {
-					if ix.LogSkip {
-						log.Printf("%s: skipped. Backup or undesirable file", path)
+				} else {
+					if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" {
+						if ix.LogSkip {
+							log.Printf("%s: skipped. Backup or undesirable file", path)
+						}
+						return nil
+					} else if info.Mode()&os.ModeSymlink != 0 {
+						if p, perr := filepath.EvalSymlinks(path); perr != nil {
+							log.Printf("%s: skipped. Symlink could not be resolved", path)
+						} else {
+							if pinfo, rerr := os.Stat(p); rerr == nil && pinfo.Mode()&os.ModeType == 0 {
+								ix.AddFile(p)
+							}
+						}
+						return nil
 					}
-					return nil
 				}
 			}
 			if err != nil {
