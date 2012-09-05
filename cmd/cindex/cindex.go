@@ -97,23 +97,20 @@ func resolveSymlink(path string) string {
 	return p
 }
 
-func walk(ix *index.IndexWriter, arg string, out chan string, subwalk bool) {
-	if ! subwalk {
-		log.Printf("index %s", arg)
-	}
+func walk(arg string, out chan string, logskip bool) {
 	filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 		if _, elem := filepath.Split(path); elem != "" {
 			// Skip various temporary or "hidden" files or directories.
 			if info.IsDir() {
 				if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
-					if ix.LogSkip {
+					if logskip {
 						log.Printf("%s: skipped. VCS or backup directory", path)
 					}
 					return filepath.SkipDir
 				}
 			} else {
 				if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" {
-					if ix.LogSkip {
+					if logskip {
 						log.Printf("%s: skipped. Backup or undesirable file", path)
 					}
 					return nil
@@ -123,11 +120,11 @@ func walk(ix *index.IndexWriter, arg string, out chan string, subwalk bool) {
 							log.Printf("%s: skipped. Symlink could not be resolved", path)
 							return nil
 						} else {
-							walk(ix, p, out, true)
+							walk(p, out, logskip)
 							return nil
 						}
 					} else {
-						if ix.LogSkip {
+						if logskip {
 							log.Printf("%s: skipped. Symlink", path)
 							return nil
 						}
@@ -140,12 +137,12 @@ func walk(ix *index.IndexWriter, arg string, out chan string, subwalk bool) {
 			log.Printf("%s: skipped. Error: %s", path, err)
 			return nil
 		}
-		if info != nil && info.Mode()&os.ModeType == 0 {
-			out <- path
-		} else {
-			if ix.LogSkip {
+		if info == nil {
+			if logskip {
 				log.Printf("%s: skipped. Unsupported path type", path)
 			}
+		} else if !info.IsDir() {
+			out <- path
 		}
 		return nil
 	})
@@ -239,7 +236,8 @@ func main() {
 		}
 	}()
 	for _, arg := range args {
-		walk(ix, arg, walkChan, false)
+		log.Printf("index %s", arg)
+		walk(arg, walkChan, *logSkipFlag)
 	}
 	doneChan<- true
 	log.Printf("flush index")
