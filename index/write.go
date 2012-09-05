@@ -103,18 +103,23 @@ func (ix *IndexWriter) AddPaths(paths []string) {
 // AddFile adds the file with the given name (opened using os.Open)
 // to the index.  It logs errors using package log.
 func (ix *IndexWriter) AddFile(name string) {
+	fi, err := os.Stat(name)
+	if err != nil {
+		log.Print(err)
+		return
+	}
 	f, err := os.Open(name)
 	if err != nil {
 		log.Print(err)
 		return
 	}
 	defer f.Close()
-	ix.Add(name, f)
+	ix.Add(name, f, fi.Size())
 }
 
 // Add adds the file f to the index under the given name.
 // It logs errors using package log.
-func (ix *IndexWriter) Add(name string, f io.Reader) {
+func (ix *IndexWriter) Add(name string, f io.Reader, size int64) {
 	ix.trigram.Reset()
 	var (
 		c       = byte(0)
@@ -151,9 +156,9 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 		}
 		if !validUTF8((tv>>8)&0xFF, tv&0xFF) {
 			inv_cnt++
-			if (float64(inv_cnt) / float64(n)) > ix.MaxInvalidUTF8Ratio {
+			if (float64(inv_cnt) / float64(size)) > ix.MaxInvalidUTF8Ratio {
 				if ix.LogSkip {
-					log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, n, inv_cnt, float64(inv_cnt)/float64(n))
+					log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, size, inv_cnt, float64(inv_cnt)/float64(size))
 				}
 				return
 			}
@@ -170,9 +175,9 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 			}
 			return
 		}
-		if linelen++; linelen > ix.MaxLineLen && (float64(inv_cnt)/float64(n)) > ix.MaxInvalidUTF8Ratio {
+		if linelen++; linelen > ix.MaxLineLen && (float64(inv_cnt)/float64(size)) > ix.MaxInvalidUTF8Ratio {
 			if ix.LogSkip {
-				log.Printf("%s: skipped. Very long lines (%d) with high invalid UTF-8 ratio total: %d invalid: %d ratio: %f\n", name, linelen, n, inv_cnt, float64(inv_cnt)/float64(n))
+				log.Printf("%s: skipped. Very long lines (%d) with high invalid UTF-8 ratio total: %d invalid: %d ratio: %f\n", name, linelen, size, inv_cnt, float64(inv_cnt)/float64(size))
 			}
 			return
 		}
@@ -181,9 +186,9 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 		}
 	}
 	if inv_cnt > 0 {
-		if (float64(inv_cnt) / float64(n)) > ix.MaxInvalidUTF8Ratio {
+		if (float64(inv_cnt) / float64(size)) > ix.MaxInvalidUTF8Ratio {
 			if ix.LogSkip {
-				log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, n, inv_cnt, float64(inv_cnt)/float64(n))
+				log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, size, inv_cnt, float64(inv_cnt)/float64(size))
 			}
 			return
 		}
