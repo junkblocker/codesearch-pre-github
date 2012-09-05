@@ -59,6 +59,7 @@ var (
 	verboseFlag = flag.Bool("verbose", false, "print extra information")
 	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
 	logSkipFlag = flag.Bool("logskip", false, "print why a file was skipped from indexing")
+	followSymlinksFlag = flag.Bool("follow-symlinks", false, "follow symlinked files and directories")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
 	// 1) if it contains an invalid UTF-8 sequences
@@ -71,6 +72,84 @@ var (
 	maxTextTrigrams     = flag.Int("maxtrigrams", 30000, "skip indexing a file if it has more than this number of trigrams")
 	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", 0, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 )
+
+func isSymLink(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false, err
+	}
+	return info.Mode()&os.ModeSymlink != 0, nil
+}
+
+func resolveSymlink(path string) string {
+	p := path
+	depth := 0
+	for yeah, err := isSymLink(path); err == nil && yeah && depth <= 20; {
+		depth++
+		if p, err = filepath.EvalSymlinks(p); err != nil {
+			return ""
+		}
+		yeah, err = isSymLink(p)
+	}
+	if depth > 20 {
+		return ""
+	}
+	return p
+}
+
+func walk(ix *index.IndexWriter, arg string, out chan string, subwalk bool) {
+	if ! subwalk {
+		log.Printf("index %s", arg)
+	}
+	filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
+		if _, elem := filepath.Split(path); elem != "" {
+			// Skip various temporary or "hidden" files or directories.
+			if info.IsDir() {
+				if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
+					if ix.LogSkip {
+						log.Printf("%s: skipped. VCS or backup directory", path)
+					}
+					return filepath.SkipDir
+				}
+			} else {
+				if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" {
+					if ix.LogSkip {
+						log.Printf("%s: skipped. Backup or undesirable file", path)
+					}
+					return nil
+				} else if info.Mode()&os.ModeSymlink != 0 {
+					if *followSymlinksFlag {
+						if p := resolveSymlink(path); p == "" {
+							log.Printf("%s: skipped. Symlink could not be resolved", path)
+							return nil
+						} else {
+							walk(ix, p, out, true)
+							return nil
+						}
+					} else {
+						if ix.LogSkip {
+							log.Printf("%s: skipped. Symlink", path)
+							return nil
+						}
+					}
+					return nil
+				}
+			}
+		}
+		if err != nil {
+			log.Printf("%s: skipped. Error: %s", path, err)
+			return nil
+		}
+		if info != nil && info.Mode()&os.ModeType == 0 {
+			out <- path
+		} else {
+			if ix.LogSkip {
+				log.Printf("%s: skipped. Unsupported path type", path)
+			}
+		}
+		return nil
+	})
+}
 
 func main() {
 	flag.Usage = usage
@@ -141,46 +220,28 @@ func main() {
 	ix.MaxTextTrigrams = *maxTextTrigrams
 	ix.MaxInvalidUTF8Ratio = *maxInvalidUTF8Ratio
 	ix.AddPaths(args)
-	for _, arg := range args {
-		log.Printf("index %s", arg)
-		filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
-			if _, elem := filepath.Split(path); elem != "" {
-				// Skip various temporary or "hidden" files or directories.
-				if info.IsDir() {
-					if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
-						if ix.LogSkip {
-							log.Printf("%s: skipped. VCS or backup directory", path)
-						}
-						return filepath.SkipDir
-					}
-				} else {
-					if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" {
-						if ix.LogSkip {
-							log.Printf("%s: skipped. Backup or undesirable file", path)
-						}
-						return nil
-					} else if info.Mode()&os.ModeSymlink != 0 {
-						if p, perr := filepath.EvalSymlinks(path); perr != nil {
-							log.Printf("%s: skipped. Symlink could not be resolved", path)
-						} else {
-							if pinfo, rerr := os.Stat(p); rerr == nil && pinfo.Mode()&os.ModeType == 0 {
-								ix.AddFile(p)
-							}
-						}
-						return nil
-					}
+
+	walkChan := make(chan string)
+	doneChan := make(chan bool)
+
+	go func() {
+		seen := make(map[string]bool)
+		for {
+			select {
+			case path := <-walkChan:
+				if ! seen[path] {
+					seen[path] = true
+					ix.AddFile(path)
 				}
+			case <-doneChan:
+				break
 			}
-			if err != nil {
-				log.Printf("%s: %s", path, err)
-				return nil
-			}
-			if info != nil && info.Mode()&os.ModeType == 0 {
-				ix.AddFile(path)
-			}
-			return nil
-		})
+		}
+	}()
+	for _, arg := range args {
+		walk(ix, arg, walkChan, false)
 	}
+	doneChan<- true
 	log.Printf("flush index")
 	ix.Flush()
 
