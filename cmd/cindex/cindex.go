@@ -75,7 +75,7 @@ var (
 
 func walk(arg string, out chan string, logskip bool) {
 	filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
-		if _, elem := filepath.Split(path); elem != "" {
+		if basedir, elem := filepath.Split(path); elem != "" {
 			// Skip various temporary or "hidden" files or directories.
 			if info.IsDir() {
 				if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
@@ -92,7 +92,7 @@ func walk(arg string, out chan string, logskip bool) {
 					return nil
 				} else if info.Mode()&os.ModeSymlink != 0 {
 					if *followSymlinksFlag {
-						if p, err := filepath.EvalSymlinks(path); err != nil {
+						if p, err := filepath.EvalSymlinks(basedir + string(os.PathSeparator) + elem); err != nil {
 							log.Printf("%s: skipped. Symlink could not be resolved", path)
 							return nil
 						} else {
