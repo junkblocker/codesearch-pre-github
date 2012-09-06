@@ -73,28 +73,11 @@ var (
 	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", 0, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 )
 
-func isSymLink(path string) (bool, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return false, err
-	}
-	return info.Mode()&os.ModeSymlink != 0, nil
-}
-
 func resolveSymlink(path string) string {
-	p := path
-	depth := 0
-	for yeah, err := isSymLink(path); err == nil && yeah && depth <= 20; {
-		depth++
-		if p, err = filepath.EvalSymlinks(p); err != nil {
-			return ""
-		}
-		yeah, err = isSymLink(p)
+	if p, err := filepath.EvalSymlinks(path); err == nil {
+		return p
 	}
-	if depth > 20 {
-		return ""
-	}
-	return p
+	return ""
 }
 
 func walk(arg string, out chan string, logskip bool) {
@@ -116,7 +99,7 @@ func walk(arg string, out chan string, logskip bool) {
 					return nil
 				} else if info.Mode()&os.ModeSymlink != 0 {
 					if *followSymlinksFlag {
-						if p := resolveSymlink(path); p == "" {
+						if p, err := filepath.EvalSymlinks(path); err != nil {
 							log.Printf("%s: skipped. Symlink could not be resolved", path)
 							return nil
 						} else {
