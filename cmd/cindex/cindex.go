@@ -59,7 +59,7 @@ var (
 	verboseFlag = flag.Bool("verbose", false, "print extra information")
 	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
 	logSkipFlag = flag.Bool("logskip", false, "print why a file was skipped from indexing")
-	followSymlinksFlag = flag.Bool("follow-symlinks", false, "follow symlinked files and directories")
+	followSymlinksFlag = flag.Bool("follow-symlinks", true, "follow symlinked files and directories")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
 	// 1) if it contains an invalid UTF-8 sequences
@@ -73,16 +73,9 @@ var (
 	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", 0, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 )
 
-func resolveSymlink(path string) string {
-	if p, err := filepath.EvalSymlinks(path); err == nil {
-		return p
-	}
-	return ""
-}
-
 func walk(arg string, out chan string, logskip bool) {
 	filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
-		if basedir, elem := filepath.Split(path); elem != "" {
+		if _, elem := filepath.Split(path); elem != "" {
 			// Skip various temporary or "hidden" files or directories.
 			if info.IsDir() {
 				if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
@@ -99,25 +92,13 @@ func walk(arg string, out chan string, logskip bool) {
 					return nil
 				} else if info.Mode()&os.ModeSymlink != 0 {
 					if *followSymlinksFlag {
-						if cwd, cerr := os.Getwd(); cerr == nil {
-							if os.Chdir(basedir) == nil {
-								if p, err := filepath.EvalSymlinks(path); err != nil {
-									if os.Chdir(cwd) == nil {
-										log.Printf("%s: skipped. Symlink could not be resolved", path)
-										return nil
-									}
-									panic(fmt.Sprintf("%s: skipped. Could not cd %s", path, cwd))
-								} else {
-									if os.Chdir(cwd) == nil {
-										walk(p, out, logskip)
-										return nil
-									}
-									panic(fmt.Sprintf("%s: skipped. Could not cd %s", path, cwd))
-								}
-							}
-							panic(fmt.Sprintf("%s: skipped. Could not cd %s", path, basedir))
+						if p, err := filepath.EvalSymlinks(path); err != nil {
+							log.Printf("%s: skipped. Symlink could not be resolved", path)
+							return nil
+						} else {
+							walk(p, out, logskip)
+							return nil
 						}
-						panic(fmt.Sprintf("%s: skipped. Could not get current directory", path))
 					} else {
 						if logskip {
 							log.Printf("%s: skipped. Symlink", path)
