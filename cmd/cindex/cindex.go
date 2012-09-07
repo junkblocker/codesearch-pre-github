@@ -54,11 +54,11 @@ func usage() {
 }
 
 var (
-	listFlag    = flag.Bool("list", false, "list indexed paths and exit")
-	resetFlag   = flag.Bool("reset", false, "discard existing index")
-	verboseFlag = flag.Bool("verbose", false, "print extra information")
-	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
-	logSkipFlag = flag.Bool("logskip", false, "print why a file was skipped from indexing")
+	listFlag           = flag.Bool("list", false, "list indexed paths and exit")
+	resetFlag          = flag.Bool("reset", false, "discard existing index")
+	verboseFlag        = flag.Bool("verbose", false, "print extra information")
+	cpuProfile         = flag.String("cpuprofile", "", "write cpu profile to this file")
+	logSkipFlag        = flag.Bool("logskip", false, "print why a file was skipped from indexing")
 	followSymlinksFlag = flag.Bool("follow-symlinks", true, "follow symlinked files and directories")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
@@ -73,52 +73,93 @@ var (
 	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", 0, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 )
 
-func walk(arg string, out chan string, logskip bool) {
+func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 	filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 		if basedir, elem := filepath.Split(path); elem != "" {
 			// Skip various temporary or "hidden" files or directories.
 			if info.IsDir() {
 				if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' {
 					if logskip {
-						log.Printf("%s: skipped. VCS or backup directory", path)
+						if symlinkFrom != "" {
+							log.Printf("%s: skipped. VCS or backup directory", symlinkFrom+path[len(arg):])
+						} else {
+							log.Printf("%s: skipped. VCS or backup directory", path)
+						}
 					}
 					return filepath.SkipDir
 				}
 			} else {
 				if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" {
 					if logskip {
-						log.Printf("%s: skipped. Backup or undesirable file", path)
+						if symlinkFrom != "" {
+							log.Printf("%s: skipped. Backup or undesirable file", symlinkFrom+path[len(arg):])
+						} else {
+							log.Printf("%s: skipped. Backup or undesirable file", path)
+						}
 					}
 					return nil
-				} else if info.Mode()&os.ModeSymlink != 0 {
-					if *followSymlinksFlag {
-						if p, err := filepath.EvalSymlinks(basedir + string(os.PathSeparator) + elem); err != nil {
-							log.Printf("%s: skipped. Symlink could not be resolved", path)
-							return nil
-						} else {
-							walk(p, out, logskip)
-							return nil
-						}
-					} else {
+				}
+				if info.Mode()&os.ModeSymlink != 0 {
+					if !*followSymlinksFlag {
 						if logskip {
 							log.Printf("%s: skipped. Symlink", path)
-							return nil
 						}
+						return nil
+					}
+					var symlinkAs string
+					if basedir[len(basedir)-1] == os.PathSeparator {
+						symlinkAs = basedir + elem
+					} else {
+						symlinkAs = basedir + string(os.PathSeparator) + elem
+					}
+					if symlinkFrom != "" {
+						symlinkAs = symlinkFrom + symlinkAs[len(arg):]
+					}
+					if p, err := filepath.EvalSymlinks(symlinkAs); err != nil {
+						if symlinkFrom != "" {
+							log.Printf("%s: skipped. Symlink could not be resolved", symlinkFrom+path[len(arg):])
+						} else {
+							log.Printf("%s: skipped. Symlink could not be resolved", path)
+						}
+					} else {
+						walk(p, symlinkAs, out, logskip)
 					}
 					return nil
 				}
 			}
 		}
 		if err != nil {
-			log.Printf("%s: skipped. Error: %s", path, err)
+			if symlinkFrom != "" {
+				log.Printf("%s: skipped. Error: %s", symlinkFrom+path[len(arg):], err)
+			} else {
+				log.Printf("%s: skipped. Error: %s", path, err)
+			}
 			return nil
 		}
-		if info == nil {
-			if logskip {
-				log.Printf("%s: skipped. Unsupported path type", path)
+		if info != nil {
+			if info.Mode()&os.ModeType == 0 {
+				if symlinkFrom == "" {
+					out <- path
+				} else {
+					out <- symlinkFrom + path[len(arg):]
+				}
+			} else if !info.IsDir() {
+				if logskip {
+					if symlinkFrom != "" {
+						log.Printf("%s: skipped. Unsupported path type", symlinkFrom+path[len(arg):])
+					} else {
+						log.Printf("%s: skipped. Unsupported path type", path)
+					}
+				}
 			}
-		} else if !info.IsDir() {
-			out <- path
+		} else {
+			if logskip {
+				if symlinkFrom != "" {
+					log.Printf("%s: skipped. Could not stat.", symlinkFrom+path[len(arg):])
+				} else {
+					log.Printf("%s: skipped. Could not stat.", path)
+				}
+			}
 		}
 		return nil
 	})
@@ -202,7 +243,7 @@ func main() {
 		for {
 			select {
 			case path := <-walkChan:
-				if ! seen[path] {
+				if !seen[path] {
 					seen[path] = true
 					ix.AddFile(path)
 				}
@@ -213,9 +254,9 @@ func main() {
 	}()
 	for _, arg := range args {
 		log.Printf("index %s", arg)
-		walk(arg, walkChan, *logSkipFlag)
+		walk(arg, "", walkChan, *logSkipFlag)
 	}
-	doneChan<- true
+	doneChan <- true
 	log.Printf("flush index")
 	ix.Flush()
 
