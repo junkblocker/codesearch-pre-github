@@ -89,7 +89,7 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 					return filepath.SkipDir
 				}
 			} else {
-				if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" {
+				if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" || elem == ".csearchindex" {
 					if logskip {
 						if symlinkFrom != "" {
 							log.Printf("%s: skipped. Backup or undesirable file", symlinkFrom+path[len(arg):])
