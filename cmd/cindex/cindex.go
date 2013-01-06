@@ -16,7 +16,26 @@ import (
 	"code.google.com/p/codesearch/index"
 )
 
-var usageMessage = `usage: cindex [-list] [-reset] [path...]
+var usageMessage = `usage: cindex [options] [path...]
+
+Options:
+
+  -verbose     print extra information
+  -list        list indexed paths and exit
+  -reset       discard existing index
+  -cpuprofile FILE
+               write CPU profile to FILE
+  -logskip     print why a file was skipped from indexing
+  -follow-symlinks
+               follow symlinked files and directories also
+  -maxFileLen BYTES
+               skip indexing a file if longer than this size in bytes
+  -maxlinelen BYTES
+               skip indexing a file if it has a line longer than this size in bytes
+  -maxtrigrams COUNT
+               skip indexing a file if it has more than this number of trigrams
+  -maxinvalidutf8ratio RATIO
+               skip indexing a file if it has more than this ratio of invalid UTF-8 sequences
 
 Cindex prepares the trigram index for use by csearch.  The index is the
 file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
@@ -39,9 +58,7 @@ If cindex is invoked with no paths, it reindexes the paths that have
 already been added, in case the files have changed.  Thus, 'cindex' by
 itself is a useful command to run in a nightly cron job.
 
-The -list flag causes cindex to list the paths it has indexed and exit.
-
-By default cindex adds the named paths to the index but preserves 
+By default cindex adds the named paths to the index but preserves
 information about other paths that might already be indexed
 (the ones printed by cindex -list).  The -reset flag causes cindex to
 delete the existing index before indexing the new paths.
@@ -59,7 +76,7 @@ var (
 	verboseFlag        = flag.Bool("verbose", false, "print extra information")
 	cpuProfile         = flag.String("cpuprofile", "", "write cpu profile to this file")
 	logSkipFlag        = flag.Bool("logskip", false, "print why a file was skipped from indexing")
-	followSymlinksFlag = flag.Bool("follow-symlinks", true, "follow symlinked files and directories")
+	followSymlinksFlag = flag.Bool("follow-symlinks", true, "follow symlinked files and directories also")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
 	// 1) if it contains an invalid UTF-8 sequences
