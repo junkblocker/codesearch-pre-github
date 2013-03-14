@@ -16,6 +16,14 @@ import (
 	"code.google.com/p/codesearch/index"
 )
 
+const (
+	DEFAULT_FOLLOW_SYMLINKS             = true
+	DEFAULT_MAX_FILE_LENGTH             = 1 << 30
+	DEFAULT_MAX_LINE_LENGTH             = 2000
+	DEFAULT_MAX_TEXT_TRIGRAMS           = 30000
+	DEFAULT_MAX_INVALID_UTF8_PERCENTAGE = 0.1
+)
+
 var usageMessage = `usage: cindex [options] [path...]
 
 Options:
@@ -27,17 +35,17 @@ Options:
                write CPU profile to FILE
   -logskip     print why a file was skipped from indexing
   -follow-symlinks
-               follow symlinked files and directories also
+               follow symlinked files and directories also (Default: %v)
   -maxFileLen BYTES
-               skip indexing a file if longer than this size in bytes
+               skip indexing a file if longer than this size in bytes (Default: %v)
   -maxlinelen BYTES
-               skip indexing a file if it has a line longer than this size in bytes
+               skip indexing a file if it has a line longer than this size in bytes (Default: %v)
   -maxtrigrams COUNT
-               skip indexing a file if it has more than this number of trigrams
+               skip indexing a file if it has more than this number of trigrams (Default: %v)
   -maxinvalidutf8ratio RATIO
-               skip indexing a file if it has more than this ratio of invalid UTF-8 sequences
+               skip indexing a file if it has more than this ratio of invalid UTF-8 sequences (Default: %v)
 
-Cindex prepares the trigram index for use by csearch.  The index is the
+cindex prepares the trigram index for use by csearch.  The index is the
 file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
 
 The simplest invocation is
@@ -66,7 +74,7 @@ With no path arguments, cindex -reset removes the index.
 `
 
 func usage() {
-	fmt.Fprintf(os.Stderr, usageMessage)
+	fmt.Fprintf(os.Stderr, usageMessage, DEFAULT_FOLLOW_SYMLINKS, DEFAULT_MAX_FILE_LENGTH, DEFAULT_MAX_LINE_LENGTH, DEFAULT_MAX_TEXT_TRIGRAMS, DEFAULT_MAX_INVALID_UTF8_PERCENTAGE)
 	os.Exit(2)
 }
 
@@ -76,7 +84,7 @@ var (
 	verboseFlag        = flag.Bool("verbose", false, "print extra information")
 	cpuProfile         = flag.String("cpuprofile", "", "write cpu profile to this file")
 	logSkipFlag        = flag.Bool("logskip", false, "print why a file was skipped from indexing")
-	followSymlinksFlag = flag.Bool("follow-symlinks", true, "follow symlinked files and directories also")
+	followSymlinksFlag = flag.Bool("follow-symlinks", DEFAULT_FOLLOW_SYMLINKS, "follow symlinked files and directories also")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
 	// 1) if it contains an invalid UTF-8 sequences
@@ -84,10 +92,10 @@ var (
 	// 3) if it contains a line longer than maxLineLen bytes,
 	// or
 	// 4) if it contains more than maxTextTrigrams distinct trigrams.
-	maxFileLen          = flag.Int64("maxfilelen", 1<<30, "skip indexing a file if longer than this size in bytes")
-	maxLineLen          = flag.Int("maxlinelen", 2000, "skip indexing a file if it has a line longer than this size in bytes")
-	maxTextTrigrams     = flag.Int("maxtrigrams", 30000, "skip indexing a file if it has more than this number of trigrams")
-	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", 0, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
+	maxFileLen          = flag.Int64("maxfilelen", DEFAULT_MAX_FILE_LENGTH, "skip indexing a file if longer than this size in bytes")
+	maxLineLen          = flag.Int("maxlinelen", DEFAULT_MAX_LINE_LENGTH, "skip indexing a file if it has a line longer than this size in bytes")
+	maxTextTrigrams     = flag.Int("maxtrigrams", DEFAULT_MAX_TEXT_TRIGRAMS, "skip indexing a file if it has more than this number of trigrams")
+	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", DEFAULT_MAX_INVALID_UTF8_PERCENTAGE, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 )
 
 func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
