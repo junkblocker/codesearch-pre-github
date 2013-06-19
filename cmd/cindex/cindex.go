@@ -13,7 +13,7 @@ import (
 	"runtime/pprof"
 	"sort"
 
-	"code.google.com/p/codesearch/index"
+	"github.com/junkblocker/codesearch/index"
 )
 
 const (
