@@ -320,7 +320,10 @@ func main() {
 		log.Printf("merge %s %s", master, file)
 		index.Merge(file+"~", master, file)
 		os.Remove(file)
-		os.Rename(file+"~", master)
+		os.Remove(master)
+		if err := os.Rename(file+"~", master); err != nil {
+			log.Fatalf("failed to merge indexes: %s", err)
+		}
 	}
 	log.Printf("done")
 	return
