@@ -414,6 +414,7 @@ func corrupt() {
 type mmapData struct {
 	f *os.File
 	d []byte
+	h uintptr
 }
 
 // mmap maps the given file into memory.
@@ -423,6 +424,11 @@ func mmap(file string) mmapData {
 		log.Fatal(err)
 	}
 	return mmapFile(f)
+}
+
+func (ix Index) Close() {
+	unmmapFile(&ix.data)
+	ix.data.f.Close()
 }
 
 // File returns the name of the index file to use.

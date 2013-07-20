@@ -222,6 +222,7 @@ func main() {
 		for _, arg := range ix.Paths() {
 			args = append(args, arg)
 		}
+		ix.Close()
 	}
 
 	// Translate paths to absolute paths so that we can

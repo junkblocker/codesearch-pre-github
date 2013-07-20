@@ -66,18 +66,22 @@ const npost = 64 << 20 / 8 // 64 MB worth of post entries
 // Create returns a new IndexWriter that will write the index to file.
 func Create(file string) *IndexWriter {
 	return &IndexWriter{
-		trigram:   sparse.NewSet(1 << 24),
-		nameData:  bufCreate(""),
-		nameIndex: bufCreate(""),
-		postIndex: bufCreate(""),
-		main:      bufCreate(file),
-		post:      make([]postEntry, 0, npost),
-		inbuf:     make([]byte, 16384),
-		MaxFileLen: 1<<30,
-		MaxLineLen: 2000,
-		MaxTextTrigrams: 20000,
+		trigram:             sparse.NewSet(1 << 24),
+		nameData:            bufCreate(""),
+		nameIndex:           bufCreate(""),
+		postIndex:           bufCreate(""),
+		main:                bufCreate(file),
+		post:                make([]postEntry, 0, npost),
+		inbuf:               make([]byte, 16384),
+		MaxFileLen:          1 << 30,
+		MaxLineLen:          2000,
+		MaxTextTrigrams:     20000,
 		MaxInvalidUTF8Ratio: 0.0,
 	}
+}
+
+func (ix *IndexWriter) Close() {
+	ix.main.finish().Close()
 }
 
 // A postEntry is an in-memory (trigram, file#) pair.

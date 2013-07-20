@@ -26,7 +26,7 @@ package index
 // Now merge the posting lists (this is why they begin with the trigram).
 // During the merge, translate the docid numbers to the new C docid space.
 // Also during the merge, write the posting list index to a temporary file as usual.
-// 
+//
 // Copy the name index and posting list index into C's index and write the trailer.
 // Rename C's index onto the new index.
 
@@ -52,7 +52,9 @@ type postIndex struct {
 // for a path, src2 is assumed to be newer and is given preference.
 func Merge(dst, src1, src2 string) {
 	ix1 := Open(src1)
+	defer ix1.Close()
 	ix2 := Open(src2)
+	defer ix2.Close()
 	paths1 := ix1.Paths()
 	paths2 := ix2.Paths()
 
@@ -226,6 +228,7 @@ func Merge(dst, src1, src2 string) {
 	ix3.writeUint32(postIndex)
 	ix3.writeString(trailerMagic)
 	ix3.flush()
+	ix3.finish().Close()
 
 	os.Remove(nameIndexFile.name)
 	os.Remove(w.postIndexFile.name)
