@@ -39,7 +39,7 @@ func mmapFile(f *os.File) mmapData {
 }
 
 func unmmapFile(mm *mmapData) {
-	err := syscall.Munmap(mm.d)
+	err := syscall.Munmap(mm.d[0:cap(mm.d)])
 	if err != nil {
 		log.Println("unmmapFile:", err)
 	}
