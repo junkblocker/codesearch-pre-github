@@ -15,28 +15,39 @@ import (
 	"github.com/junkblocker/codesearch/regexp"
 )
 
-var usageMessage = `usage: csearch [-c] [-f fileregexp] [-h] [-i] [-l] [-n] regexp
+var usageMessage = `usage: csearch [options] regexp
 
-Csearch behaves like grep over all indexed files, searching for regexp,
+Options:
+
+  -c           print only a count of selected lines to stdout
+  -f PATHREGEXP
+               search only files with names matching this regexp
+  -h           print this help text and exit
+  -i           case-insensitive search
+  -l           print only the names of the files containing matches
+  -n           print each output line preceded by its relative line number in
+               the file, starting at 1
+  -verbose     print extra information
+  -brute       brute force - search all files in index
+  -cpuprofile FILE
+               write CPU profile to FILE
+
+As per Go's flag parsing convention, the flags cannot be combined: the option
+pair -i -n cannot be abbreviated to -in.
+
+csearch behaves like grep over all indexed files, searching for regexp,
 an RE2 (nearly PCRE) regular expression.
-
-The -c, -h, -i, -l, and -n flags are as in grep, although note that as per Go's
-flag parsing convention, they cannot be combined: the option pair -i -n 
-cannot be abbreviated to -in.
-
-The -f flag restricts the search to files whose names match the RE2 regular
-expression fileregexp.
 
 Csearch relies on the existence of an up-to-date index created ahead of time.
 To build or rebuild the index that csearch uses, run:
 
 	cindex path...
 
-where path... is a list of directories or individual files to be included in the index.
-If no index exists, this command creates one.  If an index already exists, cindex
-overwrites it.  Run cindex -help for more.
+where path... is a list of directories or individual files to be included in
+the index. If no index exists, this command creates one.  If an index already
+exists, cindex overwrites it.  Run cindex -help for more.
 
-Csearch uses the index stored in $CSEARCHINDEX or, if that variable is unset or
+csearch uses the index stored in $CSEARCHINDEX or, if that variable is unset or
 empty, $HOME/.csearchindex.
 `
 
