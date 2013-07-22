@@ -134,6 +134,12 @@ func (ix *IndexWriter) Add(name string, f io.Reader, size int64) {
 		linelen = 0
 		inv_cnt = int64(0)
 	)
+	if size > ix.MaxFileLen {
+		if ix.LogSkip {
+			log.Printf("%s: too long, ignoring\n", name)
+		}
+		return
+	}
 	for {
 		tv = (tv << 8) & (1<<24 - 1)
 		if i >= len(buf) {
@@ -170,12 +176,6 @@ func (ix *IndexWriter) Add(name string, f io.Reader, size int64) {
 		if (((tv>>8)&0xFF) == 0x00 || (tv&0xFF) == 0x00) && n >= 3 {
 			if ix.LogSkip {
 				log.Printf("%s: skipped. Binary file. Bytes %02X%02X at offset %d\n", name, (tv>>8)&0xFF, tv&0xFF, n)
-			}
-			return
-		}
-		if n > ix.MaxFileLen {
-			if ix.LogSkip {
-				log.Printf("%s: too long, ignoring\n", name)
 			}
 			return
 		}
