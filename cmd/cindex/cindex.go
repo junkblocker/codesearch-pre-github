@@ -31,6 +31,8 @@ Options:
   -verbose     print extra information
   -list        list indexed paths and exit
   -reset       discard existing index
+  -indexpath FILE
+               use specified FILE as the index path. Overrides $CSEARCHINDEX.
   -cpuprofile FILE
                write CPU profile to FILE
   -logskip     print why a file was skipped from indexing
@@ -83,6 +85,7 @@ var (
 	resetFlag          = flag.Bool("reset", false, "discard existing index")
 	verboseFlag        = flag.Bool("verbose", false, "print extra information")
 	cpuProfile         = flag.String("cpuprofile", "", "write cpu profile to this file")
+	indexPath          = flag.String("indexpath", "", "specifies index path")
 	logSkipFlag        = flag.Bool("logskip", false, "print why a file was skipped from indexing")
 	followSymlinksFlag = flag.Bool("follow-symlinks", DEFAULT_FOLLOW_SYMLINKS, "follow symlinked files and directories also")
 	// Tuning variables for detecting text files.
@@ -195,8 +198,20 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 
+	if *indexPath != "" {
+		if err := os.Setenv("CSEARCHINDEX", *indexPath) ; err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	if *listFlag {
-		ix := index.Open(index.File())
+		master := index.File()
+		if stat, err := os.Stat(master); err != nil || stat == nil {
+			log.Fatal("Index " + master + " is not accessible")
+		} else if stat.IsDir() || !stat.Mode().IsRegular() {
+			log.Fatal("Index " + master + " must point to an index file")
+		}
+		ix := index.Open(master)
 		for _, arg := range ix.Paths() {
 			fmt.Printf("%s\n", arg)
 		}
@@ -214,8 +229,18 @@ func main() {
 	}
 
 	if *resetFlag && len(args) == 0 {
-		os.Remove(index.File())
-		return
+		master := index.File()
+		stat, err := os.Stat(master)
+		if err != nil {
+			// does not exist so nothing to do
+			return
+		}
+		if stat != nil && !stat.IsDir() && stat.Mode().IsRegular() {
+			os.Remove(master)
+			return
+		} else {
+			log.Fatal("Invalid index path " + master)
+		}
 	}
 	if len(args) == 0 {
 		ix := index.Open(index.File())
@@ -243,9 +268,14 @@ func main() {
 	}
 
 	master := index.File()
-	if _, err := os.Stat(master); err != nil {
+	if stat, err := os.Stat(master); err != nil {
 		// Does not exist.
 		*resetFlag = true
+	} else {
+		if stat != nil && (stat.IsDir() || !stat.Mode().IsRegular()) {
+			log.Fatal("Invalid index path " + master)
+		}
+
 	}
 	file := master
 	if !*resetFlag {

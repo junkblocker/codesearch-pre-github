@@ -27,6 +27,8 @@ Options:
   -l           print only the names of the files containing matches
   -n           print each output line preceded by its relative line number in
                the file, starting at 1
+  -indexpath FILE
+               use specified FILE as the index path. Overrides $CSEARCHINDEX.
   -verbose     print extra information
   -brute       brute force - search all files in index
   -cpuprofile FILE
@@ -62,6 +64,7 @@ var (
 	verboseFlag = flag.Bool("verbose", false, "print extra information")
 	bruteFlag   = flag.Bool("brute", false, "brute force - search all files in index")
 	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
+	indexPath   = flag.String("indexpath", "", "specifies index path")
 
 	matches bool
 )
@@ -89,6 +92,13 @@ func Main() {
 		defer f.Close()
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
+	}
+
+	if *indexPath != "" {
+		err := os.Setenv("CSEARCHINDEX", *indexPath)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	pat := "(?m)" + args[0]
