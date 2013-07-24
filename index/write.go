@@ -124,22 +124,25 @@ func (ix *IndexWriter) AddFile(name string) {
 // Add adds the file f to the index under the given name.
 // It logs errors using package log.
 func (ix *IndexWriter) Add(name string, f io.Reader, size int64) {
-	ix.trigram.Reset()
-	var (
-		c       = byte(0)
-		i       = 0
-		buf     = ix.inbuf[:0]
-		tv      = uint32(0)
-		n       = int64(0)
-		linelen = 0
-		inv_cnt = int64(0)
-	)
 	if size > ix.MaxFileLen {
 		if ix.LogSkip {
 			log.Printf("%s: too long, ignoring\n", name)
 		}
 		return
 	}
+	ix.trigram.Reset()
+	var (
+		c           = byte(0)
+		i           = 0
+		buf         = ix.inbuf[:0]
+		tv          = uint32(0)
+		n           = int64(0)
+		linelen     = 0
+		inv_cnt     = int64(0)
+		b1          = byte(0)
+		b2          = byte(0)
+		max_invalid = int64(float64(size) * ix.MaxInvalidUTF8Ratio)
+	)
 	for {
 		tv = (tv << 8) & (1<<24 - 1)
 		if i >= len(buf) {
@@ -162,26 +165,28 @@ func (ix *IndexWriter) Add(name string, f io.Reader, size int64) {
 		i++
 		tv |= uint32(c)
 		if n++; n >= 3 {
-			ix.trigram.Add(tv)
-		}
-		if !validUTF8((tv>>8)&0xFF, tv&0xFF) {
-			inv_cnt++
-			if (float64(inv_cnt) / float64(size)) > ix.MaxInvalidUTF8Ratio {
-				if ix.LogSkip {
-					log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, size, inv_cnt, float64(inv_cnt)/float64(size))
+			b1 = byte((tv >> 8) & 0xFF)
+			b2 = byte(tv & 0xFF)
+			if !validUTF8(b1, b2) {
+				if inv_cnt++; inv_cnt > max_invalid {
+					if ix.LogSkip {
+						log.Printf("%s: skipped. High invalid UTF-8 ratio. total: %d invalid: %d ratio: %f\n", name, size, inv_cnt, float64(inv_cnt)/float64(size))
+					}
+					return
 				}
-				return
+			} else {
+				ix.trigram.Add(tv)
 			}
 		}
-		if (((tv>>8)&0xFF) == 0x00 || (tv&0xFF) == 0x00) && n >= 3 {
+		if (b1 == 0x00 || b2 == 0x00) && n >= 3 {
 			if ix.LogSkip {
 				log.Printf("%s: skipped. Binary file. Bytes %02X%02X at offset %d\n", name, (tv>>8)&0xFF, tv&0xFF, n)
 			}
 			return
 		}
-		if linelen++; linelen > ix.MaxLineLen && (float64(inv_cnt)/float64(size)) > ix.MaxInvalidUTF8Ratio {
+		if linelen++; linelen > ix.MaxLineLen {
 			if ix.LogSkip {
-				log.Printf("%s: skipped. Very long lines (%d) with high invalid UTF-8 ratio total: %d invalid: %d ratio: %f\n", name, linelen, size, inv_cnt, float64(inv_cnt)/float64(size))
+				log.Printf("%s: skipped. Very long lines (%d)\n", name, linelen)
 			}
 			return
 		}
@@ -603,7 +608,7 @@ func (b *bufWriter) writeUvarint(x uint32) {
 
 // validUTF8 reports whether the byte pair can appear in a
 // valid sequence of UTF-8-encoded code points.
-func validUTF8(c1, c2 uint32) bool {
+func validUTF8(c1, c2 byte) bool {
 	switch {
 	case c1 < 0x80:
 		// 1-byte, must be followed by 1-byte or first of multi-byte
