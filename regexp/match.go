@@ -359,6 +359,10 @@ type Grep struct {
 	N bool // N flag - print line numbers
 	H bool // H flag - do not print file names
 
+	Done            bool
+	lines_printed   int64 // running match count
+	max_print_lines int64 // Max match count
+
 	Match bool
 
 	buf []byte
@@ -381,6 +385,15 @@ func (g *Grep) File(name string) {
 	g.Reader(f, name)
 }
 
+func (g *Grep) Limit(limit int64) {
+	g.Done = false
+	g.lines_printed = 0
+	g.max_print_lines = limit
+	if g.max_print_lines < 0 {
+		g.max_print_lines = 0
+	}
+}
+
 var nl = []byte{'\n'}
 
 func countNL(b []byte) int {
@@ -397,6 +410,9 @@ func countNL(b []byte) int {
 }
 
 func (g *Grep) Reader(r io.Reader, name string) {
+	if g.Done {
+		return
+	}
 	if g.buf == nil {
 		g.buf = make([]byte, 1<<20)
 	}
@@ -431,6 +447,10 @@ func (g *Grep) Reader(r io.Reader, name string) {
 			g.Match = true
 			if g.L {
 				fmt.Fprintf(g.Stdout, "%s\n", name)
+				g.lines_printed++
+				if g.max_print_lines > 0 && g.lines_printed >= g.max_print_lines {
+					g.Done = true
+				}
 				return
 			}
 			lineStart := bytes.LastIndex(buf[chunkStart:m1], nl) + 1 + chunkStart
@@ -447,8 +467,18 @@ func (g *Grep) Reader(r io.Reader, name string) {
 				count++
 			case g.N:
 				fmt.Fprintf(g.Stdout, "%s%d:%s", prefix, lineno, line)
+				g.lines_printed++
+				if g.max_print_lines > 0 && g.lines_printed >= g.max_print_lines {
+					g.Done = true
+					return
+				}
 			default:
 				fmt.Fprintf(g.Stdout, "%s%s", prefix, line)
+				g.lines_printed++
+				if g.max_print_lines > 0 && g.lines_printed >= g.max_print_lines {
+					g.Done = true
+					return
+				}
 			}
 			if needLineno {
 				lineno++
@@ -463,11 +493,17 @@ func (g *Grep) Reader(r io.Reader, name string) {
 		if len(buf) == 0 && err != nil {
 			if err != io.EOF && err != io.ErrUnexpectedEOF {
 				fmt.Fprintf(g.Stderr, "%s: %v\n", name, err)
+				// error lines do not count towards max lines printed
 			}
 			break
 		}
 	}
 	if g.C && count > 0 {
 		fmt.Fprintf(g.Stdout, "%s: %d\n", name, count)
+		g.lines_printed++
+		if g.max_print_lines > 0 && g.lines_printed >= g.max_print_lines {
+			g.Done = true
+			return
+		}
 	}
 }

@@ -25,6 +25,7 @@ Options:
   -h           print this help text and exit
   -i           case-insensitive search
   -l           print only the names of the files containing matches
+  -m MAXCOUNT  limit search output results to MAXCOUNT (0: no limit)
   -n           print each output line preceded by its relative line number in
                the file, starting at 1
   -indexpath FILE
@@ -65,6 +66,7 @@ var (
 	bruteFlag   = flag.Bool("brute", false, "brute force - search all files in index")
 	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
 	indexPath   = flag.String("indexpath", "", "specifies index path")
+	maxCount    = flag.Int64("m", 0, "specified maximum number of search results")
 
 	matches bool
 )
@@ -151,9 +153,15 @@ func Main() {
 		post = fnames
 	}
 
+	g.Limit(*maxCount)
+
 	for _, fileid := range post {
 		name := ix.Name(fileid)
 		g.File(name)
+		// short circuit here too
+		if g.Done {
+			break
+		}
 	}
 
 	matches = g.Match
