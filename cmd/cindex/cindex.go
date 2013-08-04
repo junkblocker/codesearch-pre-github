@@ -106,7 +106,7 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 		if basedir, elem := filepath.Split(path); elem != "" {
 			// Skip various temporary or "hidden" files or directories.
 			if info != nil && info.IsDir() {
-				if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == ".fseventsd" || elem == ".Trashes" || elem == ".Spotlight-V100" || elem == ".DocumentRevisions-V100" {
+				if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == ".fseventsd" || elem == ".Trashes" || elem == ".Spotlight-V100" || elem == ".DocumentRevisions-V100" || elem == ".dropbox.cache" || elem == ".SyncArchive" {
 					if logskip {
 						if symlinkFrom != "" {
 							log.Printf("%s: skipped. VCS or backup directory", symlinkFrom+path[len(arg):])
@@ -117,7 +117,7 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 					return filepath.SkipDir
 				}
 			} else {
-				if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" || elem == ".csearchindex" {
+				if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" || elem == ".csearchindex" || elem == ".SyncID" || elem == ".SyncIgnore" {
 					if logskip {
 						if symlinkFrom != "" {
 							log.Printf("%s: skipped. Backup or undesirable file", symlinkFrom+path[len(arg):])
@@ -199,7 +199,7 @@ func main() {
 	args := flag.Args()
 
 	if *indexPath != "" {
-		if err := os.Setenv("CSEARCHINDEX", *indexPath) ; err != nil {
+		if err := os.Setenv("CSEARCHINDEX", *indexPath); err != nil {
 			log.Fatal(err)
 		}
 	}
