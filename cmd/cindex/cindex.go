@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"sort"
+	"syscall"
 
 	"github.com/junkblocker/codesearch/index"
 )
@@ -197,6 +198,8 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 	args := flag.Args()
+
+	syscall.Umask(0600)
 
 	if *indexPath != "" {
 		if err := os.Setenv("CSEARCHINDEX", *indexPath); err != nil {
