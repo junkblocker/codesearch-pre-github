@@ -9,6 +9,14 @@
     For background and an overview of the commands,
     see http://swtch.com/~rsc/regexp/regexp4.html.
 
-    Russ Cox 
+    To install:
+
+    	go get code.google.com/p/codesearch/cmd/...
+
+    Russ Cox
     rsc@swtch.com
     January 2012
+
+To install this fork:
+
+	go get github.com/junkblocker/codesearch/...
