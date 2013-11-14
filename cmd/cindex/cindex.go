@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"sort"
+	"strings"
 
 	"github.com/junkblocker/codesearch/index"
 )
@@ -46,6 +47,7 @@ Options:
                skip indexing a file if it has more than this number of trigrams (Default: %v)
   -maxinvalidutf8ratio RATIO
                skip indexing a file if it has more than this ratio of invalid UTF-8 sequences (Default: %v)
+  -exclude     list of space separated file patterns to exclude from indexing
 
 cindex prepares the trigram index for use by csearch.  The index is the
 file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
@@ -88,6 +90,7 @@ var (
 	indexPath          = flag.String("indexpath", "", "specifies index path")
 	logSkipFlag        = flag.Bool("logskip", false, "print why a file was skipped from indexing")
 	followSymlinksFlag = flag.Bool("follow-symlinks", DEFAULT_FOLLOW_SYMLINKS, "follow symlinked files and directories also")
+	exclude            = flag.String("exclude", "", "list of space separated file patterns to exclude from indexing")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
 	// 1) if it contains an invalid UTF-8 sequences
@@ -99,14 +102,51 @@ var (
 	maxLineLen          = flag.Int("maxlinelen", DEFAULT_MAX_LINE_LENGTH, "skip indexing a file if it has a line longer than this size in bytes")
 	maxTextTrigrams     = flag.Int("maxtrigrams", DEFAULT_MAX_TEXT_TRIGRAMS, "skip indexing a file if it has more than this number of trigrams")
 	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", DEFAULT_MAX_INVALID_UTF8_PERCENTAGE, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
+
+	excludePatterns = []string{
+		".git",
+		".hg",
+		".bzr",
+		".svn",
+		".svk",
+		"SCCS",
+		"CVS",
+		"_darcs",
+		"_MTN",
+		"#*",
+		"~*",
+		"*~",
+		".fseventsd",
+		".Trashes",
+		".Spotlight-V100",
+		".DocumentRevisions-V100",
+		".dropbox.cache",
+		".SyncArchive",
+		"tags",
+		".DS_Store",
+		".csearchindex",
+		".SyncID",
+		".SyncIgnore",
+	}
 )
 
 func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 	filepath.Walk(arg, func(path string, info os.FileInfo, err error) error {
 		if basedir, elem := filepath.Split(path); elem != "" {
+			exclude := false
+			for _, pattern := range excludePatterns {
+				exclude, err = filepath.Match(pattern, elem)
+				if err != nil {
+					log.Fatal(err)
+				}
+				if exclude {
+					break
+				}
+			}
+
 			// Skip various temporary or "hidden" files or directories.
 			if info != nil && info.IsDir() {
-				if elem == ".git" || elem == ".hg" || elem == ".bzr" || elem == ".svn" || elem == ".svk" || elem == "SCCS" || elem == "CVS" || elem == "_darcs" || elem == "_MTN" || elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == ".fseventsd" || elem == ".Trashes" || elem == ".Spotlight-V100" || elem == ".DocumentRevisions-V100" || elem == ".dropbox.cache" || elem == ".SyncArchive" {
+				if exclude {
 					if logskip {
 						if symlinkFrom != "" {
 							log.Printf("%s: skipped. VCS or backup directory", symlinkFrom+path[len(arg):])
@@ -117,7 +157,7 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 					return filepath.SkipDir
 				}
 			} else {
-				if elem[0] == '#' || elem[0] == '~' || elem[len(elem)-1] == '~' || elem == "tags" || elem == ".DS_Store" || elem == ".csearchindex" || elem == ".SyncID" || elem == ".SyncIgnore" {
+				if exclude {
 					if logskip {
 						if symlinkFrom != "" {
 							log.Printf("%s: skipped. Backup or undesirable file", symlinkFrom+path[len(arg):])
@@ -242,6 +282,11 @@ func main() {
 			log.Fatal("Invalid index path " + master)
 		}
 	}
+
+	if *exclude != "" {
+		excludePatterns = append(excludePatterns, strings.Split(*exclude, " ")...)
+	}
+
 	if len(args) == 0 {
 		ix := index.Open(index.File())
 		for _, arg := range ix.Paths() {
