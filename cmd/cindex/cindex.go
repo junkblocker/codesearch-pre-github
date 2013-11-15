@@ -7,6 +7,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -47,7 +48,8 @@ Options:
                skip indexing a file if it has more than this number of trigrams (Default: %v)
   -maxinvalidutf8ratio RATIO
                skip indexing a file if it has more than this ratio of invalid UTF-8 sequences (Default: %v)
-  -exclude     list of space separated file patterns to exclude from indexing
+  -exclude FILE
+  			   path to file containing a list of file patterns to exclude from indexing
 
 cindex prepares the trigram index for use by csearch.  The index is the
 file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
@@ -90,7 +92,7 @@ var (
 	indexPath          = flag.String("indexpath", "", "specifies index path")
 	logSkipFlag        = flag.Bool("logskip", false, "print why a file was skipped from indexing")
 	followSymlinksFlag = flag.Bool("follow-symlinks", DEFAULT_FOLLOW_SYMLINKS, "follow symlinked files and directories also")
-	exclude            = flag.String("exclude", "", "list of space separated file patterns to exclude from indexing")
+	exclude            = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from indexing")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
 	// 1) if it contains an invalid UTF-8 sequences
@@ -104,29 +106,7 @@ var (
 	maxInvalidUTF8Ratio = flag.Float64("maxinvalidutf8ratio", DEFAULT_MAX_INVALID_UTF8_PERCENTAGE, "skip indexing a file if it has more than this ratio of invalid UTF-8 sequences")
 
 	excludePatterns = []string{
-		".git",
-		".hg",
-		".bzr",
-		".svn",
-		".svk",
-		"SCCS",
-		"CVS",
-		"_darcs",
-		"_MTN",
-		"#*",
-		"~*",
-		"*~",
-		".fseventsd",
-		".Trashes",
-		".Spotlight-V100",
-		".DocumentRevisions-V100",
-		".dropbox.cache",
-		".SyncArchive",
-		"tags",
-		".DS_Store",
 		".csearchindex",
-		".SyncID",
-		".SyncIgnore",
 	}
 )
 
@@ -284,7 +264,14 @@ func main() {
 	}
 
 	if *exclude != "" {
-		excludePatterns = append(excludePatterns, strings.Split(*exclude, " ")...)
+		data, err := ioutil.ReadFile(*exclude)
+		if err != nil {
+			log.Fatal(err)
+		}
+		excludePatterns = append(excludePatterns, strings.Split(string(data), "\n")...)
+		for i, pattern := range excludePatterns {
+			excludePatterns[i] = strings.TrimSpace(pattern)
+		}
 	}
 
 	if len(args) == 0 {
