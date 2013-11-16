@@ -49,7 +49,7 @@ Options:
   -maxinvalidutf8ratio RATIO
                skip indexing a file if it has more than this ratio of invalid UTF-8 sequences (Default: %v)
   -exclude FILE
-  			   path to file containing a list of file patterns to exclude from indexing
+               path to file containing a list of file patterns to exclude from indexing
 
 cindex prepares the trigram index for use by csearch.  The index is the
 file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
