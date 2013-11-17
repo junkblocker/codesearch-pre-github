@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime/pprof"
 	"sort"
@@ -264,7 +265,20 @@ func main() {
 	}
 
 	if *exclude != "" {
-		data, err := ioutil.ReadFile(*exclude)
+		var excludePath string
+		if (*exclude)[:2] == "~/" {
+			usr, err := user.Current()
+			if err != nil {
+				log.Fatal(err)
+			}
+			excludePath = filepath.Join(usr.HomeDir, (*exclude)[2:])
+		} else {
+			excludePath = *exclude
+		}
+		if *logSkipFlag {
+			log.Printf("Loading exclude patterns from %s", excludePath)
+		}
+		data, err := ioutil.ReadFile(excludePath)
 		if err != nil {
 			log.Fatal(err)
 		}
