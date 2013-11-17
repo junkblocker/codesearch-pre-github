@@ -130,9 +130,9 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 				if exclude {
 					if logskip {
 						if symlinkFrom != "" {
-							log.Printf("%s: skipped. VCS or backup directory", symlinkFrom+path[len(arg):])
+							log.Printf("%s: skipped. Excluded directory", symlinkFrom+path[len(arg):])
 						} else {
-							log.Printf("%s: skipped. VCS or backup directory", path)
+							log.Printf("%s: skipped. Excluded directory", path)
 						}
 					}
 					return filepath.SkipDir
@@ -141,9 +141,9 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 				if exclude {
 					if logskip {
 						if symlinkFrom != "" {
-							log.Printf("%s: skipped. Backup or undesirable file", symlinkFrom+path[len(arg):])
+							log.Printf("%s: skipped. Excluded file", symlinkFrom+path[len(arg):])
 						} else {
-							log.Printf("%s: skipped. Backup or undesirable file", path)
+							log.Printf("%s: skipped. Excluded file", path)
 						}
 					}
 					return nil
