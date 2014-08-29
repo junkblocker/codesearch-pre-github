@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	DEFAULT_FOLLOW_SYMLINKS             = false
 	DEFAULT_MAX_FILE_LENGTH             = 1 << 30
 	DEFAULT_MAX_LINE_LENGTH             = 2000
 	DEFAULT_MAX_TEXT_TRIGRAMS           = 30000
