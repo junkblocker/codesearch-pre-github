@@ -25,6 +25,7 @@ Options:
   -h           print this help text and exit
   -i           case-insensitive search
   -l           print only the names of the files containing matches
+  -0           print -l matches separated by NUL ('\0') character
   -m MAXCOUNT  limit search output results to MAXCOUNT (0: no limit)
   -n           print each output line preceded by its relative line number in
                the file, starting at 1
