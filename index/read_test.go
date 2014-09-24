@@ -25,7 +25,7 @@ func TestTrivialPosting(t *testing.T) {
 	f, _ := ioutil.TempFile("", "index-test")
 	defer os.Remove(f.Name())
 	out := f.Name()
-	buildIndex(out, nil, postFiles)
+	buildIndex(t, out, nil, postFiles)
 	ix := Open(out)
 	if l := ix.PostingList(tri('S', 'e', 'a')); !equalList(l, []uint32{1, 3}) {
 		t.Errorf("PostingList(Sea) = %v, want [1 3]", l)

@@ -49,8 +49,8 @@ func TestMerge(t *testing.T) {
 	out2 := f2.Name()
 	out3 := f3.Name()
 
-	buildIndex(out1, mergePaths1, mergeFiles1)
-	buildIndex(out2, mergePaths2, mergeFiles2)
+	buildIndex(t, out1, mergePaths1, mergeFiles1)
+	buildIndex(t, out2, mergePaths2, mergeFiles2)
 
 	Merge(out3, out1, out2)
 
