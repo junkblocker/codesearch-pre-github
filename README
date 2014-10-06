@@ -5,9 +5,9 @@ To install this fork:
 
 	go get github.com/junkblocker/codesearch/...
 
+Or grab the binaries from:
 
-
-
+	https://github.com/junkblocker/codesearch/releases
 
 
 
