@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	DEFAULT_FOLLOW_SYMLINKS             = true
 	DEFAULT_MAX_FILE_LENGTH             = 1 << 30
 	DEFAULT_MAX_LINE_LENGTH             = 2000
 	DEFAULT_MAX_TEXT_TRIGRAMS           = 30000
@@ -39,8 +38,8 @@ Options:
   -cpuprofile FILE
                write CPU profile to FILE
   -logskip     print why a file was skipped from indexing
-  -follow-symlinks
-               follow symlinked files and directories also (Default: %v)
+  -no-follow-symlinks
+               do not follow symlinked files and directories
   -maxFileLen BYTES
                skip indexing a file if longer than this size in bytes (Default: %v)
   -maxlinelen BYTES
@@ -81,19 +80,19 @@ With no path arguments, cindex -reset removes the index.
 `
 
 func usage() {
-	fmt.Fprintf(os.Stderr, usageMessage, DEFAULT_FOLLOW_SYMLINKS, DEFAULT_MAX_FILE_LENGTH, DEFAULT_MAX_LINE_LENGTH, DEFAULT_MAX_TEXT_TRIGRAMS, DEFAULT_MAX_INVALID_UTF8_PERCENTAGE)
+	fmt.Fprintf(os.Stderr, usageMessage, DEFAULT_MAX_FILE_LENGTH, DEFAULT_MAX_LINE_LENGTH, DEFAULT_MAX_TEXT_TRIGRAMS, DEFAULT_MAX_INVALID_UTF8_PERCENTAGE)
 	os.Exit(2)
 }
 
 var (
-	listFlag           = flag.Bool("list", false, "list indexed paths and exit")
-	resetFlag          = flag.Bool("reset", false, "discard existing index")
-	verboseFlag        = flag.Bool("verbose", false, "print extra information")
-	cpuProfile         = flag.String("cpuprofile", "", "write cpu profile to this file")
-	indexPath          = flag.String("indexpath", "", "specifies index path")
-	logSkipFlag        = flag.Bool("logskip", false, "print why a file was skipped from indexing")
-	followSymlinksFlag = flag.Bool("follow-symlinks", DEFAULT_FOLLOW_SYMLINKS, "follow symlinked files and directories also")
-	exclude            = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from indexing")
+	listFlag             = flag.Bool("list", false, "list indexed paths and exit")
+	resetFlag            = flag.Bool("reset", false, "discard existing index")
+	verboseFlag          = flag.Bool("verbose", false, "print extra information")
+	cpuProfile           = flag.String("cpuprofile", "", "write cpu profile to this file")
+	indexPath            = flag.String("indexpath", "", "specifies index path")
+	logSkipFlag          = flag.Bool("logskip", false, "print why a file was skipped from indexing")
+	noFollowSymlinksFlag = flag.Bool("no-follow-symlinks", false, "do not follow symlinked files and directories")
+	exclude              = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from indexing")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
 	// 1) if it contains an invalid UTF-8 sequences
@@ -149,7 +148,7 @@ func walk(arg string, symlinkFrom string, out chan string, logskip bool) {
 					return nil
 				}
 				if info != nil && info.Mode()&os.ModeSymlink != 0 {
-					if !*followSymlinksFlag {
+					if *noFollowSymlinksFlag {
 						if logskip {
 							log.Printf("%s: skipped. Symlink", path)
 						}
