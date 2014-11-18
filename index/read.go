@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2014 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -434,6 +434,19 @@ func (ix Index) Close() {
 	ix.data.f.Close()
 }
 
+// find home directory without cgo if needed
+func HomeDir() string {
+	u, err := user.Current()
+	if err != nil {
+		h := os.Getenv("HOME")
+		if h == "" {
+			log.Fatal("Could not determine home directory")
+		}
+		return h
+	}
+	return u.HomeDir
+}
+
 // File returns the name of the index file to use.
 // It is either $CSEARCHINDEX or $HOME/.csearchindex.
 func File() string {
@@ -441,9 +454,5 @@ func File() string {
 	if f != "" {
 		return f
 	}
-	u, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
-	return filepath.Join(u.HomeDir, ".csearchindex")
+	return filepath.Join(HomeDir(), ".csearchindex")
 }

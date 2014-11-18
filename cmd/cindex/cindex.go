@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2014 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime/pprof"
 	"sort"
@@ -260,19 +259,14 @@ func main() {
 		if stat != nil && !stat.IsDir() && stat.Mode().IsRegular() {
 			os.Remove(master)
 			return
-		} else {
-			log.Fatal("Invalid index path " + master)
 		}
+		log.Fatal("Invalid index path " + master)
 	}
 
 	if *exclude != "" {
 		var excludePath string
 		if (*exclude)[:2] == "~/" {
-			usr, err := user.Current()
-			if err != nil {
-				log.Fatal(err)
-			}
-			excludePath = filepath.Join(usr.HomeDir, (*exclude)[2:])
+			excludePath = filepath.Join(index.HomeDir(), (*exclude)[2:])
 		} else {
 			excludePath = *exclude
 		}
