@@ -1,4 +1,6 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -21,7 +23,7 @@ func mmapFile(f *os.File) mmapData {
 		log.Fatalf("%s: too large for mmap", f.Name())
 	}
 	if size == 0 {
-		return mmapData{f, nil}
+		return mmapData{f, nil, 0}
 	}
 	h, err := syscall.CreateFileMapping(syscall.Handle(f.Fd()), nil, syscall.PAGE_READONLY, uint32(size>>32), uint32(size), nil)
 	if err != nil {
@@ -33,5 +35,20 @@ func mmapFile(f *os.File) mmapData {
 		log.Fatalf("MapViewOfFile %s: %v", f.Name(), err)
 	}
 	data := (*[1 << 30]byte)(unsafe.Pointer(addr))
-	return mmapData{f, data[:size]}
+	return mmapData{f, data[:size], uintptr(h)}
+}
+
+func unmmapFile(mm *mmapData) {
+	err := syscall.UnmapViewOfFile(uintptr(unsafe.Pointer(&mm.d[0])))
+	if err != nil {
+		log.Fatal(err)
+	}
+	err2 := syscall.CloseHandle(syscall.Handle(mm.h))
+	if err2 != nil {
+		log.Fatal(err2)
+	}
+	err3 := mm.f.Close()
+	if err3 != nil {
+		log.Fatal(err3)
+	}
 }

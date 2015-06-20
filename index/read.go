@@ -1,4 +1,6 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2013-2014 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -69,6 +71,7 @@ import (
 	"encoding/binary"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -415,6 +418,7 @@ func corrupt() {
 type mmapData struct {
 	f *os.File
 	d []byte
+	h uintptr
 }
 
 // mmap maps the given file into memory.
@@ -426,6 +430,21 @@ func mmap(file string) mmapData {
 	return mmapFile(f)
 }
 
+func (ix Index) Close() {
+	unmmapFile(&ix.data)
+	ix.data.f.Close()
+}
+
+// find home directory without cgo if needed
+func HomeDir() string {
+	var home string
+	home = os.Getenv("HOME")
+	if runtime.GOOS == "windows" && home == "" {
+		home = os.Getenv("USERPROFILE")
+	}
+	return home
+}
+
 // File returns the name of the index file to use.
 // It is either $CSEARCHINDEX or $HOME/.csearchindex.
 func File() string {
@@ -433,10 +452,5 @@ func File() string {
 	if f != "" {
 		return f
 	}
-	var home string
-	home = os.Getenv("HOME")
-	if runtime.GOOS == "windows" && home == "" {
-		home = os.Getenv("USERPROFILE")
-	}
-	return filepath.Clean(home + "/.csearchindex")
+	return filepath.Join(HomeDir(), ".csearchindex")
 }

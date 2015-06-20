@@ -1,4 +1,6 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -49,8 +51,8 @@ func TestMerge(t *testing.T) {
 	out2 := f2.Name()
 	out3 := f3.Name()
 
-	buildIndex(out1, mergePaths1, mergeFiles1)
-	buildIndex(out2, mergePaths2, mergeFiles2)
+	buildIndex(t, out1, mergePaths1, mergeFiles1)
+	buildIndex(t, out2, mergePaths2, mergeFiles2)
 
 	Merge(out3, out1, out2)
 

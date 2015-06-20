@@ -1,4 +1,6 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -11,32 +13,47 @@ import (
 	"os"
 	"runtime/pprof"
 
-	"github.com/google/codesearch/index"
-	"github.com/google/codesearch/regexp"
+	"github.com/junkblocker/codesearch/index"
+	"github.com/junkblocker/codesearch/regexp"
 )
 
-var usageMessage = `usage: csearch [-c] [-f fileregexp] [-h] [-i] [-l] [-n] regexp
+var usageMessage = `usage: csearch [options] regexp
 
-Csearch behaves like grep over all indexed files, searching for regexp,
+Options:
+
+  -c           print only a count of selected lines to stdout
+  -f PATHREGEXP
+               search only files with names matching this regexp
+  -h           print this help text and exit
+  -i           case-insensitive search
+  -l           print only the names of the files containing matches
+  -0           print -l matches separated by NUL ('\0') character
+  -m MAXCOUNT  limit search output results to MAXCOUNT (0: no limit)
+  -n           print each output line preceded by its relative line number in
+               the file, starting at 1
+  -indexpath FILE
+               use specified FILE as the index path. Overrides $CSEARCHINDEX.
+  -verbose     print extra information
+  -brute       brute force - search all files in index
+  -cpuprofile FILE
+               write CPU profile to FILE
+
+As per Go's flag parsing convention, the flags cannot be combined: the option
+pair -i -n cannot be abbreviated to -in.
+
+csearch behaves like grep over all indexed files, searching for regexp,
 an RE2 (nearly PCRE) regular expression.
-
-The -c, -h, -i, -l, and -n flags are as in grep, although note that as per Go's
-flag parsing convention, they cannot be combined: the option pair -i -n 
-cannot be abbreviated to -in.
-
-The -f flag restricts the search to files whose names match the RE2 regular
-expression fileregexp.
 
 Csearch relies on the existence of an up-to-date index created ahead of time.
 To build or rebuild the index that csearch uses, run:
 
 	cindex path...
 
-where path... is a list of directories or individual files to be included in the index.
-If no index exists, this command creates one.  If an index already exists, cindex
-overwrites it.  Run cindex -help for more.
+where path... is a list of directories or individual files to be included in
+the index. If no index exists, this command creates one.  If an index already
+exists, cindex overwrites it.  Run cindex -help for more.
 
-Csearch uses the index stored in $CSEARCHINDEX or, if that variable is unset or
+csearch uses the index stored in $CSEARCHINDEX or, if that variable is unset or
 empty, $HOME/.csearchindex.
 `
 
@@ -51,6 +68,8 @@ var (
 	verboseFlag = flag.Bool("verbose", false, "print extra information")
 	bruteFlag   = flag.Bool("brute", false, "brute force - search all files in index")
 	cpuProfile  = flag.String("cpuprofile", "", "write cpu profile to this file")
+	indexPath   = flag.String("indexpath", "", "specifies index path")
+	maxCount    = flag.Int64("m", 0, "specified maximum number of search results")
 
 	matches bool
 )
@@ -78,6 +97,13 @@ func Main() {
 		defer f.Close()
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
+	}
+
+	if *indexPath != "" {
+		err := os.Setenv("CSEARCHINDEX", *indexPath)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	pat := "(?m)" + args[0]
@@ -130,9 +156,15 @@ func Main() {
 		post = fnames
 	}
 
+	g.Limit(*maxCount)
+
 	for _, fileid := range post {
 		name := ix.Name(fileid)
 		g.File(name)
+		// short circuit here too
+		if g.Done {
+			break
+		}
 	}
 
 	matches = g.Match

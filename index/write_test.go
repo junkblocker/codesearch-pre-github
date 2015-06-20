@@ -1,4 +1,6 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -115,7 +117,7 @@ func fileList(list ...uint32) string {
 	return string(buf)
 }
 
-func buildFlushIndex(out string, paths []string, doFlush bool, fileData map[string]string) {
+func buildFlushIndex(t *testing.T, out string, paths []string, doFlush bool, fileData map[string]string) {
 	ix := Create(out)
 	ix.AddPaths(paths)
 	var files []string
@@ -124,7 +126,8 @@ func buildFlushIndex(out string, paths []string, doFlush bool, fileData map[stri
 	}
 	sort.Strings(files)
 	for _, name := range files {
-		ix.Add(name, strings.NewReader(fileData[name]))
+		r := strings.NewReader(fileData[name])
+		ix.Add(name, r, int64(r.Len()))
 	}
 	if doFlush {
 		ix.flushPost()
@@ -132,15 +135,15 @@ func buildFlushIndex(out string, paths []string, doFlush bool, fileData map[stri
 	ix.Flush()
 }
 
-func buildIndex(name string, paths []string, fileData map[string]string) {
-	buildFlushIndex(name, paths, false, fileData)
+func buildIndex(t *testing.T, name string, paths []string, fileData map[string]string) {
+	buildFlushIndex(t, name, paths, false, fileData)
 }
 
 func testTrivialWrite(t *testing.T, doFlush bool) {
 	f, _ := ioutil.TempFile("", "index-test")
 	defer os.Remove(f.Name())
 	out := f.Name()
-	buildFlushIndex(out, nil, doFlush, trivialFiles)
+	buildFlushIndex(t, out, nil, doFlush, trivialFiles)
 
 	data, err := ioutil.ReadFile(out)
 	if err != nil {
