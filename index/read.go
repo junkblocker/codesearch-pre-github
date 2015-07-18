@@ -71,7 +71,6 @@ import (
 	"encoding/binary"
 	"log"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"sort"
