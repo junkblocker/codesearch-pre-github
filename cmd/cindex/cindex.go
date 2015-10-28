@@ -51,6 +51,8 @@ Options:
                skip indexing a file if it has more than this ratio of invalid UTF-8 sequences (Default: %v)
   -exclude FILE
                path to file containing a list of file patterns to exclude from indexing
+  -filelist FILE
+               path to file containing a list of file paths to index
 
 cindex prepares the trigram index for use by csearch.  The index is the
 file named by $CSEARCHINDEX, or else $HOME/.csearchindex.
@@ -94,6 +96,7 @@ var (
 	logSkipFlag          = flag.Bool("logskip", false, "print why a file was skipped from indexing")
 	noFollowSymlinksFlag = flag.Bool("no-follow-symlinks", false, "do not follow symlinked files and directories")
 	exclude              = flag.String("exclude", "", "path to file containing a list of file patterns to exclude from indexing")
+	fileList             = flag.String("filelist", "", "path to file containing a list of file paths to index")
 	// Tuning variables for detecting text files.
 	// A file is assumed not to be text files (and thus not indexed) if
 	// 1) if it contains an invalid UTF-8 sequences
@@ -281,6 +284,23 @@ func main() {
 		for i, pattern := range excludePatterns {
 			excludePatterns[i] = strings.TrimSpace(pattern)
 		}
+	}
+
+	if *fileList != "" {
+		var fileListPath string
+		if (*fileList)[:2] == "~/" {
+			fileListPath = filepath.Join(index.HomeDir(), (*fileList)[2:])
+		} else {
+			fileListPath = *fileList
+		}
+		if *logSkipFlag {
+			log.Printf("Loading fileList patterns from %s", fileListPath)
+		}
+		data, err := ioutil.ReadFile(fileListPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		args = append(args, strings.Split(string(data), "\n")...)
 	}
 
 	if len(args) == 0 {
