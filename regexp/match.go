@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors.  All rights reserved.
-// Copyright 2013 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
+// Copyright 2013-2016 Manpreet Singh ( junkblocker@yahoo.com ). All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -362,9 +362,10 @@ type Grep struct {
 	N bool // N flag - print line numbers
 	H bool // H flag - do not print file names
 
-	Done            bool
-	lines_printed   int64 // running match count
-	max_print_lines int64 // Max match count
+	Done                 bool
+	lines_printed        int64 // running match count
+	max_print_lines      int64 // Max match count
+	maxPrintLinesPerFile int64 // Max match count
 
 	Match bool
 
@@ -389,12 +390,16 @@ func (g *Grep) File(name string) {
 	g.Reader(f, name)
 }
 
-func (g *Grep) Limit(limit int64) {
+func (g *Grep) LimitPrintCount(globalLimit int64, fileLimit int64) {
 	g.Done = false
 	g.lines_printed = 0
-	g.max_print_lines = limit
+	g.max_print_lines = globalLimit
 	if g.max_print_lines < 0 {
 		g.max_print_lines = 0
+	}
+	g.maxPrintLinesPerFile = fileLimit
+	if g.maxPrintLinesPerFile < 0 {
+		g.maxPrintLinesPerFile = 0
 	}
 }
 
@@ -421,14 +426,15 @@ func (g *Grep) Reader(r io.Reader, name string) {
 		g.buf = make([]byte, 1<<20)
 	}
 	var (
-		buf        = g.buf[:0]
-		needLineno = g.N
-		lineno     = 1
-		count      = 0
-		prefix     = ""
-		beginText  = true
-		endText    = false
-		outSep     = '\n'
+		buf                  = g.buf[:0]
+		needLineno           = g.N
+		lineno               = 1
+		count                = 0
+		prefix               = ""
+		beginText            = true
+		endText              = false
+		outSep               = '\n'
+		printedForFile int64 = 0
 	)
 	if !g.H {
 		prefix = name + ":"
@@ -476,15 +482,23 @@ func (g *Grep) Reader(r io.Reader, name string) {
 			case g.N:
 				fmt.Fprintf(g.Stdout, "%s%d:%s", prefix, lineno, line)
 				g.lines_printed++
+				printedForFile++
 				if g.max_print_lines > 0 && g.lines_printed >= g.max_print_lines {
 					g.Done = true
+					return
+				}
+				if g.maxPrintLinesPerFile > 0 && printedForFile >= g.maxPrintLinesPerFile {
 					return
 				}
 			default:
 				fmt.Fprintf(g.Stdout, "%s%s", prefix, line)
 				g.lines_printed++
+				printedForFile++
 				if g.max_print_lines > 0 && g.lines_printed >= g.max_print_lines {
 					g.Done = true
+					return
+				}
+				if g.maxPrintLinesPerFile > 0 && printedForFile >= g.maxPrintLinesPerFile {
 					return
 				}
 			}
